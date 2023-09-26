@@ -16,11 +16,12 @@ const NAME: &str = env!("CARGO_PKG_NAME");
 struct ImageObject {
     title: String,
     url: String,
+    urlbase: String,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let api_url = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US";
+    let api_url = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mbl=1&mkt=en-US";
 
     let args = Arguments::parse();
     let mode = mode(args.mode);
@@ -35,13 +36,22 @@ async fn main() -> anyhow::Result<()> {
         .await
         .map_err(|_| errors::Error::ImageRequest(api_url.to_owned()))?;
 
+    println!("response: {:?}", response);
+
     let image_object = response["images"].as_array().unwrap().first().unwrap();
+    println!("image_object: {:?}", image_object);
+
     let image = ImageObject {
         title: image_object["title"].as_str().unwrap().to_string(),
         url: image_object["url"].as_str().unwrap().to_string(),
+        urlbase: image_object["urlbase"].as_str().unwrap().to_string(),
     };
 
-    let image_url = format!("https://bing.com/{}", image.url);
+    // https://github.com/neffo/bing-wallpaper-gnome-extension/blob/64d516aaf17fda563e4dd2f856e6fa6fa5edc176/extension.js#L812C10-L812C10
+    // this.imageURL = BingURL + image.urlbase + '_' + resolution + '.jpg'; // generate image url for user's resolution
+    let resolution = "UHD";
+    // urlbase start with `/`
+    let image_url = format!("https://bing.com{}_{}.jpg", image.urlbase, resolution);
     let destination = save_image(&image_url).await?;
 
     if let Some(custom_command) = args.custom_command {
@@ -69,8 +79,13 @@ async fn save_image(image_url: &String) -> anyhow::Result<PathBuf> {
 
         let file_name = PathBuf::from(".wallpaper.jpg");
 
+        println!("Downloading {} ...", image_url);
+
         let response = reqwest::get(image_url).await?;
         dir.push(file_name);
+
+        println!("filepath: {:?}", &dir);
+
         let mut file = tokio::fs::File::create(&dir).await?;
 
         let content = response.bytes_stream().map(|result| {
