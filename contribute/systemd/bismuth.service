@@ -1,0 +1,11 @@
+[Unit]
+Description=bismuth service set your desktop wallpaper to the newest Bing Image Of The Day
+ConditionVirtualization=!container
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/environment
+ExecStart=/usr/local/bin/bismuth -c "gsettings set org.gnome.desktop.background picture-uri 'file://%'"
+PrivateDevices=no
+PrivateNetwork=no
+PrivateUsers=no

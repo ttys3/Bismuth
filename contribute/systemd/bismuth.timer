@@ -1,0 +1,12 @@
+[Unit]
+Description=bismuth timer to set your desktop wallpaper to the newest Bing Image Of The Day
+ConditionVirtualization=!container
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30min
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target
