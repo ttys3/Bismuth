@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2023-10-13
+
+### Features
+
+- Add systemd log script
+- Support save wallpaper to ~/Pictures/BingWallpaper/ just like https://github.com/neffo/bing-wallpaper-gnome-extension/
+- Update CHANGELOG.md
+
 ## [1.1.0] - 2023-10-13
 
 ### Documentation
