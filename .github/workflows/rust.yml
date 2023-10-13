@@ -24,6 +24,7 @@ jobs:
             target: x86_64-unknown-linux-musl
             bin: bismuth
             name: bismuth-Linux-x86_64-musl.tar.gz
+            cross: false
           
           - release_for: Linux-aarch64
             os_name: Linux-aarch64
@@ -31,11 +32,23 @@ jobs:
             target: aarch64-unknown-linux-musl
             bin: bismuth
             name: bismuth-Linux-aarch64-musl.tar.gz
+            cross: false
 
     runs-on: ${{ matrix.platform.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      
+      - name: Install toolchain if not cross-compiling
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+        if: ${{ !matrix.platform.cross }}
+
+      - name: Install musl-tools on Linux
+        run: sudo apt-get update --yes && sudo apt-get install --yes musl-tools
+        if: contains(matrix.platform.os, 'ubuntu') && !matrix.platform.cross
+
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v0
         with:
