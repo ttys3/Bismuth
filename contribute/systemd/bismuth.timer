@@ -4,7 +4,7 @@ ConditionVirtualization=!container
 
 [Timer]
 OnBootSec=1min
-OnUnitActiveSec=30min
+OnActiveSec=30min
 Persistent=true
 RandomizedDelaySec=600
 
