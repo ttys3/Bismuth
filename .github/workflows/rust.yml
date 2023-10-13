@@ -8,15 +8,38 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CRATE_NAME: bismuth
+  GITHUB_TOKEN: ${{ github.token }}
+  RUST_BACKTRACE: 1
 
 jobs:
-  build:
+  release:
+    name: Release - ${{ matrix.platform.release_for }}
+    strategy:
+      matrix:
+        platform:
+          - release_for: Linux-x86_64
+            os_name: Linux-x86_64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+            bin: bismuth
+            name: bismuth-Linux-x86_64-musl.tar.gz
+          
+          - release_for: Linux-aarch64
+            os_name: Linux-aarch64
+            os: ubuntu-22.04
+            target: aarch64-unknown-linux-musl
+            bin: bismuth
+            name: bismuth-Linux-aarch64-musl.tar.gz
 
-    runs-on: ubuntu-latest
-
+    runs-on: ${{ matrix.platform.os }}
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: ${{ matrix.platform.command }}
+          target: ${{ matrix.platform.target }}
+          args: "--locked --release"
+          strip: true
