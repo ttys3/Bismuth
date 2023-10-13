@@ -2,9 +2,17 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    # Sequence of patterns matched against refs/heads
+    branches:    
+      - main
+      - 'releases/v*'
+    # Sequence of patterns matched against refs/tags
+    tags:        
+      - 'v*'
   pull_request:
-    branches: [ "main" ]
+    # Sequence of patterns matched against refs/heads
+    branches:    
+      - main
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,9 +22,12 @@ env:
 
 jobs:
   release:
-    name: Release - ${{ matrix.platform.release_for }}
+    name: Release - ${{ matrix.platform.release_for }} on OS ${{ matrix.platform.os_name }} with rust ${{ matrix.toolchain }} with refs ${{ github.ref }}
     strategy:
       matrix:
+        toolchain:
+          - stable
+          #- nightly
         platform:
           - release_for: Linux-x86_64
             os_name: Linux-x86_64
@@ -38,7 +49,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      
+
+      - name: Cache cargo & target directories
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "v2"
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "jdoe@example.com"
+          git config --global user.name "J. Doe"
+
       - name: Install toolchain if not cross-compiling
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -54,5 +75,41 @@ jobs:
         with:
           command: ${{ matrix.platform.command }}
           target: ${{ matrix.platform.target }}
+          toolchain: ${{ matrix.toolchain }}
           args: "--locked --release"
           strip: true
+
+      - name: Package as archive
+        shell: bash
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
+            7z a ../../../${{ matrix.platform.name }} ${{ matrix.platform.bin }}
+          else
+            tar czvf ../../../${{ matrix.platform.name }} ${{ matrix.platform.bin }}
+          fi
+          cd -
+        if: |
+          matrix.toolchain == 'stable' &&
+          ( startsWith( github.ref, 'refs/tags/v' ) ||
+            github.ref == 'refs/tags/test-release' )
+      - name: Publish release artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: bismuth-${{ matrix.platform.os_name }}
+          path: "bismuth-*"
+        if: ${{ matrix.toolchain == 'stable' && github.ref == 'refs/tags/test-release' }}
+      - name: Generate SHA-256
+        run: shasum -a 256 ${{ matrix.platform.name }}
+        if: |
+          matrix.toolchain == 'stable' &&
+          matrix.platform.os == 'macOS-latest' &&
+          ( startsWith( github.ref, 'refs/tags/v' ) ||
+            github.ref == 'refs/tags/test-release' )
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: "bismuth*"
+          body_path: Changes.md
+        if: ${{ matrix.toolchain == 'stable' && startsWith( github.ref, 'refs/tags/v' ) }}
