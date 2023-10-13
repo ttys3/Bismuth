@@ -4,8 +4,10 @@ use directories::BaseDirs;
 use inflector::{self, Inflector};
 use notify_rust::Notification;
 use std::{path::PathBuf, process::Command};
+use std::path::Path;
 use tokio_stream::StreamExt;
 use tokio_util::io::StreamReader;
+use serde::{Deserialize, Serialize};
 
 mod args;
 mod errors;
@@ -13,10 +15,62 @@ mod errors;
 const ICON: &str = "image-jpeg";
 const NAME: &str = env!("CARGO_PKG_NAME");
 
+const DEFAULT_RESOLUTION: &str = "UHD";
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ImageObject {
-    title: String,
-    url: String,
-    urlbase: String,
+    pub title: String,
+    pub url: String,
+    pub urlbase: String,
+    pub startdate: String,
+    pub enddate: String,
+    pub resolution: Option<String>,
+    pub wp: bool,
+}
+
+/// sample response
+/// Object {"images": Array [
+/// Object {"bot": Number(1), "copyright": String("Vieste on the Gargano peninsula, Apulia, Italy (© Pilat666/Getty Images)"),
+/// "copyrightlink": String("https://www.bing.com/search?q=Vieste&form=hpcapt&filters=HpDate%3a%2220231013_0700%22"),
+/// "drk": Number(1), "enddate": String("20231014"), "fullstartdate": String("202310130700"),
+/// "hs": Array [], "hsh": String("c01dedec87d8be3c1b1332686c8fe269"),
+/// "quiz": String("/search?q=Bing+homepage+quiz&filters=WQOskey:%22HPQuiz_20231013_ViesteItaly%22&FORM=HPQUIZ"), "startdate": String("20231013"),
+/// "title": String("Life on the edge"),
+/// "top": Number(1), "url": String("/th?id=OHR.ViesteItaly_EN-US0948108910_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp"),
+/// "urlbase": String("/th?id=OHR.ViesteItaly_EN-US0948108910"),
+/// "wp": Bool(true)}], "market": Object {"mkt": String("en-US")}, "tooltips": Object {"loading": String("Loading..."),
+/// "next": String("Next image"), "previous": String("Previous image"), "walle": String("This image is not available to download as wallpaper."),
+/// "walls": String("Download this image. Use of this image is restricted to wallpaper only.")}}
+#[derive(Serialize, Deserialize, Debug)]
+struct Response {
+    pub images: Option<Vec<ImageObject>>,
+}
+
+impl ImageObject {
+    /// get save filename use the same logic as neffo/bing-wallpaper-gnome-extension
+    // https://github.com/neffo/bing-wallpaper-gnome-extension/blob/64d516aaf17fda563e4dd2f856e6fa6fa5edc176/extension.js#L812C10-L812C10
+    // this.imageURL = BingURL + image.urlbase + '_' + resolution + '.jpg'; // generate image url for user's resolution
+    // this.filename = toFilename(BingWallpaperDir, image.startdate, image.urlbase, resolution);
+    /// function toFilename(wallpaperDir, startdate, imageURL, resolution) {
+    //     return wallpaperDir + startdate + '-' + imageURL.replace(/^.*[\\\/]/, '').replace('th?id=OHR.', '') + '_' + resolution + '.jpg';
+    // }
+    pub fn get_save_filename(&self) -> anyhow::Result<String> {
+        // url demo: /th?id=OHR.ViesteItaly_EN-US0948108910_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp
+        // urlbase demo: /th?id=OHR.ViesteItaly_EN-US0948108910
+        if let Some(rs) = std::string::String::from(self.urlbase.clone()).rsplit_once("/") {
+            if rs.1.starts_with("th?id=OHR.") {
+                let mut cleaned_filename = rs.1.strip_prefix("th?id=OHR.").unwrap();
+                let cleaned_filename = cleaned_filename.replace("..", "_");
+                return Ok(format!("{}-{}_{}.jpg", self.startdate, cleaned_filename, self.resolution.clone().unwrap_or(DEFAULT_RESOLUTION.to_string())));
+            }
+        }
+        Err(anyhow::format_err!("can not parse urlbase {}  to filename", self.urlbase.clone()))
+    }
+
+    pub fn get_download_url(&self, resolution: &str) -> String {
+        // urlbase start with `/`
+        format!("https://bing.com{}_{}.jpg", self.urlbase, resolution)
+    }
 }
 
 #[tokio::main]
@@ -26,33 +80,29 @@ async fn main() -> anyhow::Result<()> {
     let args = Arguments::parse();
     let mode = mode(args.mode);
 
+    println!("begin request api ...");
+
+    // https://docs.rs/reqwest/latest/reqwest/struct.Response.html#method.json
     let client = reqwest::Client::new();
-    let response: serde_json::Value = client
+    let response: Response = client
         .get(api_url)
         .send()
         .await
-        .map_err(|_| errors::Error::Domain(api_url.to_owned()))?
-        .json()
+        .map_err(|err| errors::Error::Domain(api_url.to_owned() + ", err: " + &err.to_string()))?
+        .json::<Response>()
         .await
-        .map_err(|_| errors::Error::ImageRequest(api_url.to_owned()))?;
+        .map_err(|err| errors::Error::ImageRequest(api_url.to_owned() + ", err: " +  &err.to_string()))?;
 
-    println!("response: {:?}", response);
+    println!("response: {:?}", &response);
 
-    let image_object = response["images"].as_array().unwrap().first().unwrap();
-    println!("image_object: {:?}", image_object);
+    // temporary value is freed at the end of this statement
+    // let image = response.images.unwrap().first().unwrap();
+    let binding = response.images.unwrap();
+    let image = binding.first().unwrap();
 
-    let image = ImageObject {
-        title: image_object["title"].as_str().unwrap().to_string(),
-        url: image_object["url"].as_str().unwrap().to_string(),
-        urlbase: image_object["urlbase"].as_str().unwrap().to_string(),
-    };
+    println!("image: {:?}", image);
 
-    // https://github.com/neffo/bing-wallpaper-gnome-extension/blob/64d516aaf17fda563e4dd2f856e6fa6fa5edc176/extension.js#L812C10-L812C10
-    // this.imageURL = BingURL + image.urlbase + '_' + resolution + '.jpg'; // generate image url for user's resolution
-    let resolution = "UHD";
-    // urlbase start with `/`
-    let image_url = format!("https://bing.com{}_{}.jpg", image.urlbase, resolution);
-    let destination = save_image(&image_url).await?;
+    let destination = save_image(&image, args.backup_dir).await?;
 
     if let Some(custom_command) = args.custom_command {
         let command_args = custom_command.iter().map(|arg|arg.replace("%", &destination.to_string_lossy().into_owned()));
@@ -77,31 +127,43 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn save_image(image_url: &String) -> anyhow::Result<PathBuf> {
-    if let Some(base_dirs) = BaseDirs::new() {
-        let mut dir = base_dirs.data_local_dir().to_path_buf();
+async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::Result<PathBuf> {
+    let base_dirs = BaseDirs::new().ok_or_else(||anyhow::format_err!("BaseDirs::new() failed"))?;
+    //return Err(errors::Error::Directory.into());
+    let image_url = image.get_download_url(DEFAULT_RESOLUTION);
+    println!("Downloading {} ...", image_url);
+    let response = reqwest::get(image_url).await?;
 
+    let save_path = if let Some(backup_dir) = backup_dir {
+        let home_dir = base_dirs.home_dir();
+        let backup_dir = backup_dir.replace("~", home_dir.to_str().ok_or_else(||anyhow::format_err!("home_dir to_str failed"))?);
+        let mut full_path = PathBuf::from(backup_dir);
+        let dir_path = Path::new(&full_path);
+        if !dir_path.exists() {
+            std::fs::create_dir_all(dir_path)?
+        }
+        let file_name = PathBuf::from(image.get_save_filename()?);
+        full_path.push(file_name);
+        full_path
+    } else {
+        let mut full_path = base_dirs.data_local_dir().to_path_buf();
         let file_name = PathBuf::from(".wallpaper.jpg");
 
-        println!("Downloading {} ...", image_url);
+        full_path.push(file_name);
+        full_path
+    };
 
-        let response = reqwest::get(image_url).await?;
-        dir.push(file_name);
+    println!("filepath: {:?}", &save_path);
 
-        println!("filepath: {:?}", &dir);
+    let mut file = tokio::fs::File::create(&save_path).await?;
 
-        let mut file = tokio::fs::File::create(&dir).await?;
+    let content = response.bytes_stream().map(|result| {
+        result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
+    });
 
-        let content = response.bytes_stream().map(|result| {
-            result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
-        });
+    tokio::io::copy(&mut StreamReader::new(content), &mut file).await?;
 
-        tokio::io::copy(&mut StreamReader::new(content), &mut file).await?;
-
-        Ok(dir)
-    } else {
-        Err(errors::Error::Directory.into())
-    }
+    Ok(save_path)
 }
 
 fn send_notification(summary: &str, body: &str, icon: &str) -> anyhow::Result<()> {

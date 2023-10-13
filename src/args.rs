@@ -21,6 +21,10 @@ pub struct Arguments {
     /// Call custom wallpaper command
     #[clap(long, short)]
     pub custom_command: Option<Vec<String>>,
+
+    /// Backup dir to copy daily wallpaper to
+    #[clap(long, short)]
+    pub backup_dir: Option<String>,
 }
 
 #[derive(Debug, ValueEnum, Clone)]
