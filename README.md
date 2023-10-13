@@ -1,5 +1,12 @@
 # Bismuth
 
+> [**Bismuth**](https://en.wikipedia.org/wiki/Bismuth) is a chemical element with the symbol **Bi** and atomic number 83.
+
+> **ビスマス**（英語: bismuth `[ˈbɪzməθ]`）あるいは**蒼鉛**（そうえん）は、原子番号83の元素。元素記号は **Bi**（ラテン語: Bismuthumから）。第15族元素の一つ。
+
+![Bismuth](https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Bismuth_crystals_and_1cm3_cube.jpg/500px-Bismuth_crystals_and_1cm3_cube.jpg)
+
+
 ## Table of Contents
 
 - [About](#about)
