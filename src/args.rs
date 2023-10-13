@@ -20,7 +20,7 @@ pub struct Arguments {
 
     /// Call custom wallpaper command
     #[clap(long, short)]
-    pub custom_command: Option<String>,
+    pub custom_command: Option<Vec<String>>,
 }
 
 #[derive(Debug, ValueEnum, Clone)]

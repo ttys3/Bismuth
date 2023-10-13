@@ -55,11 +55,15 @@ async fn main() -> anyhow::Result<()> {
     let destination = save_image(&image_url).await?;
 
     if let Some(custom_command) = args.custom_command {
-        let command_arg = custom_command.replace("%", &destination.to_string_lossy().into_owned());
-
-        Command::new("sh").arg("-c").arg(command_arg).spawn()?
+        let command_args = custom_command.iter().map(|arg|arg.replace("%", &destination.to_string_lossy().into_owned()));
+        println!("command_args: {:?}", command_args.clone().collect::<Vec<_>>());
+        // loop command_args and exec sh -c command
+        for arg in command_args {
+            println!("begin exec command: {:?}", arg);
+            Command::new("sh").arg("-c").arg(arg).spawn()?;
+        }
     } else {
-        Command::new("feh").arg(mode).arg(&destination).spawn()?
+        Command::new("feh").arg(mode).arg(&destination).spawn()?;
     };
 
     if !args.silent {
