@@ -25,6 +25,15 @@ pub struct Arguments {
     /// Backup dir to copy daily wallpaper to
     #[clap(long, short)]
     pub backup_dir: Option<String>,
+
+    /// Specify the market to use for the wallpaper
+    /// see https://github.com/neffo/bing-wallpaper-gnome-extension/blob/64d516aaf17fda563e4dd2f856e6fa6fa5edc176/extension.js#L628
+    #[clap(long, short)]
+    pub market: Option<String>,
+
+    /// Specify the resolution to use for the wallpaper
+    #[clap(long, short)]
+    pub resolution: Option<String>,
 }
 
 #[derive(Debug, ValueEnum, Clone)]

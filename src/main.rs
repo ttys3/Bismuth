@@ -16,6 +16,16 @@ const ICON: &str = "image-jpeg";
 const NAME: &str = env!("CARGO_PKG_NAME");
 
 const DEFAULT_RESOLUTION: &str = "UHD";
+const DEFAULT_MARKET: &str = "en-US";
+
+// RESOLUTIONS and MARKETS ref https://github.com/neffo/bing-wallpaper-gnome-extension/blob/64d516aaf17fda563e4dd2f856e6fa6fa5edc176/utils.js#L42
+const RESOLUTIONS: [&str; 8]  = ["auto", "UHD", "1920x1200", "1920x1080", "1366x768", "1280x720", "1024x768", "800x600"];
+const MARKETS: [&str; 57]  = ["auto", "ar-XA", "da-DK", "de-AT", "de-CH", "de-DE", "en-AU", "en-CA", "en-GB",
+"en-ID", "en-IE", "en-IN", "en-MY", "en-NZ", "en-PH", "en-SG", "en-US", "en-WW", "en-XA", "en-ZA", "es-AR",
+"es-CL", "es-ES", "es-MX", "es-US", "es-XL", "et-EE", "fi-FI", "fr-BE", "fr-CA", "fr-CH", "fr-FR",
+"he-IL", "hr-HR", "hu-HU", "it-IT", "ja-JP", "ko-KR", "lt-LT", "lv-LV", "nb-NO", "nl-BE", "nl-NL",
+"pl-PL", "pt-BR", "pt-PT", "ro-RO", "ru-RU", "sk-SK", "sl-SL", "sv-SE", "th-TH", "tr-TR", "uk-UA",
+"zh-CN", "zh-HK", "zh-TW"];
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ImageObject {
@@ -68,24 +78,39 @@ impl ImageObject {
     }
 
     pub fn get_download_url(&self, resolution: &str) -> String {
-        // urlbase start with `/`
+        let resolution = if RESOLUTIONS.contains(&resolution) {
+            resolution
+        } else {
+            println!("resolution {} not in {:?}, use default {}", resolution, RESOLUTIONS, DEFAULT_RESOLUTION);
+            DEFAULT_RESOLUTION
+        };
         format!("https://bing.com{}_{}.jpg", self.urlbase, resolution)
     }
 }
 
+fn get_api_url(mkt: &str) -> String {
+    let mkt = if MARKETS.contains(&mkt) {
+        mkt
+    } else {
+        println!("market {} not in {:?}, use default {}", mkt, MARKETS, DEFAULT_MARKET);
+        DEFAULT_MARKET
+    };
+    format!("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mbl=1&mkt={}", mkt)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let api_url = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mbl=1&mkt=en-US";
-
     let args = Arguments::parse();
     let mode = mode(args.mode);
 
-    println!("begin request api ...");
+    let api_url = get_api_url(&args.market.as_ref().map_or(DEFAULT_MARKET.to_owned(), |x|x.to_owned()));
+
+    println!("begin request api {} ...", &api_url);
 
     // https://docs.rs/reqwest/latest/reqwest/struct.Response.html#method.json
     let client = reqwest::Client::new();
     let response: Response = client
-        .get(api_url)
+        .get(api_url.clone())
         .send()
         .await
         .map_err(|err| errors::Error::Domain(api_url.to_owned() + ", err: " + &err.to_string()))?
