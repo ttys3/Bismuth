@@ -116,9 +116,9 @@ impl ImageObject {
     pub fn get_save_filename(&self) -> anyhow::Result<String> {
         // url demo: /th?id=OHR.ViesteItaly_EN-US0948108910_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp
         // urlbase demo: /th?id=OHR.ViesteItaly_EN-US0948108910
-        if let Some(rs) = std::string::String::from(self.urlbase.clone()).rsplit_once("/") {
+        if let Some(rs) = self.urlbase.clone().rsplit_once('/') {
             if rs.1.starts_with("th?id=OHR.") {
-                let mut cleaned_filename = rs.1.strip_prefix("th?id=OHR.").unwrap();
+                let cleaned_filename = rs.1.strip_prefix("th?id=OHR.").unwrap();
                 let cleaned_filename = cleaned_filename.replace("..", "_");
                 return Ok(format!(
                     "{}-{}_{}.jpg",
@@ -196,15 +196,15 @@ async fn main() -> anyhow::Result<()> {
             "full_start_date +24h: {}, now: {}",
             full_start_date, now_date
         );
-        let mut date_ok = actual_date == image.enddate || actual_date == image.startdate;
+        // let date_ok = actual_date == image.enddate || actual_date == image.startdate;
         // check if: current time > full_start_date + 24 hours
-        if now_date < full_start_date {
+        let date_ok = if now_date < full_start_date {
             debug!("cached api data is not expired, do nothing. image: {:?}, {} (full_start_date) < {} (now_date)", image, full_start_date, now_date);
-            date_ok = true;
+            true
         } else {
             info!("cached api data is expired, continue to request api. image: {:?}, full_start_date: {}", image, full_start_date);
-            date_ok = false;
-        }
+            false
+        };
         if args.resolution == image.resolution && args.market == image.market && date_ok {
             info!(
                 "cached api data match our need, do nothing. image: {:?}",
@@ -261,7 +261,7 @@ async fn main() -> anyhow::Result<()> {
     if let Some(custom_command) = args.custom_command {
         let command_args = custom_command
             .iter()
-            .map(|arg| arg.replace("%", &destination.to_string_lossy().into_owned()));
+            .map(|arg| arg.replace('%', &destination.to_string_lossy()));
         debug!(
             "command_args: {:?}",
             command_args.clone().collect::<Vec<_>>()
@@ -272,7 +272,7 @@ async fn main() -> anyhow::Result<()> {
             Command::new("sh").arg("-c").arg(arg).spawn()?;
         }
     } else {
-        Command::new("feh").arg(mode).arg(&destination).spawn()?;
+        Command::new("feh").arg(mode).arg(&destination).spawn().map_err(|e|errors::Error::Feh(e.to_string()))?;
     };
 
     if !args.silent {
@@ -288,7 +288,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::Result<PathBuf> {
-    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::format_err!("BaseDirs::new() failed"))?;
+    let base_dirs = BaseDirs::new().ok_or(errors::Error::Directory)?;
     //return Err(errors::Error::Directory.into());
     let image_url = image.get_download_url(DEFAULT_RESOLUTION);
     info!("Downloading {} ...", image_url);
@@ -297,7 +297,7 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
     let save_path = if let Some(backup_dir) = backup_dir {
         let home_dir = base_dirs.home_dir();
         let backup_dir = backup_dir.replace(
-            "~",
+            '~',
             home_dir
                 .to_str()
                 .ok_or_else(|| anyhow::format_err!("home_dir to_str failed"))?,
