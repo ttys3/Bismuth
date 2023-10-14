@@ -5,7 +5,7 @@ ConditionVirtualization=!container
 [Timer]
 OnBootSec=1min
 OnActiveSec=30min
-RandomizedDelaySec=600
+RandomizedDelaySec=180
 
 [Install]
 WantedBy=timers.target
