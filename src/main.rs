@@ -1,17 +1,17 @@
+use anyhow::Context;
 use args::Arguments;
+use chrono::TimeZone;
 use clap::Parser;
 use directories::BaseDirs;
 use inflector::{self, Inflector};
-use notify_rust::Notification;
-use std::{path::PathBuf, process::Command};
-use std::path::Path;
-use anyhow::Context;
-use chrono::TimeZone;
 use log::{debug, info};
+use notify_rust::Notification;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::{path::PathBuf, process::Command};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_stream::StreamExt;
 use tokio_util::io::StreamReader;
-use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 mod args;
 mod errors;
@@ -23,30 +23,41 @@ const DEFAULT_RESOLUTION: &str = "UHD";
 const DEFAULT_MARKET: &str = "en-US";
 
 // RESOLUTIONS and MARKETS ref https://github.com/neffo/bing-wallpaper-gnome-extension/blob/64d516aaf17fda563e4dd2f856e6fa6fa5edc176/utils.js#L42
-const RESOLUTIONS: [&str; 8]  = ["auto", "UHD", "1920x1200", "1920x1080", "1366x768", "1280x720", "1024x768", "800x600"];
-const MARKETS: [&str; 57]  = ["auto", "ar-XA", "da-DK", "de-AT", "de-CH", "de-DE", "en-AU", "en-CA", "en-GB",
-"en-ID", "en-IE", "en-IN", "en-MY", "en-NZ", "en-PH", "en-SG", "en-US", "en-WW", "en-XA", "en-ZA", "es-AR",
-"es-CL", "es-ES", "es-MX", "es-US", "es-XL", "et-EE", "fi-FI", "fr-BE", "fr-CA", "fr-CH", "fr-FR",
-"he-IL", "hr-HR", "hu-HU", "it-IT", "ja-JP", "ko-KR", "lt-LT", "lv-LV", "nb-NO", "nl-BE", "nl-NL",
-"pl-PL", "pt-BR", "pt-PT", "ro-RO", "ru-RU", "sk-SK", "sl-SL", "sv-SE", "th-TH", "tr-TR", "uk-UA",
-"zh-CN", "zh-HK", "zh-TW"];
+const RESOLUTIONS: [&str; 8] = [
+    "auto",
+    "UHD",
+    "1920x1200",
+    "1920x1080",
+    "1366x768",
+    "1280x720",
+    "1024x768",
+    "800x600",
+];
+const MARKETS: [&str; 57] = [
+    "auto", "ar-XA", "da-DK", "de-AT", "de-CH", "de-DE", "en-AU", "en-CA", "en-GB", "en-ID",
+    "en-IE", "en-IN", "en-MY", "en-NZ", "en-PH", "en-SG", "en-US", "en-WW", "en-XA", "en-ZA",
+    "es-AR", "es-CL", "es-ES", "es-MX", "es-US", "es-XL", "et-EE", "fi-FI", "fr-BE", "fr-CA",
+    "fr-CH", "fr-FR", "he-IL", "hr-HR", "hu-HU", "it-IT", "ja-JP", "ko-KR", "lt-LT", "lv-LV",
+    "nb-NO", "nl-BE", "nl-NL", "pl-PL", "pt-BR", "pt-PT", "ro-RO", "ru-RU", "sk-SK", "sl-SL",
+    "sv-SE", "th-TH", "tr-TR", "uk-UA", "zh-CN", "zh-HK", "zh-TW",
+];
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ImageObject {
-    pub startdate: String, // example: 20231013
+    pub startdate: String,     // example: 20231013
     pub fullstartdate: String, // example: 202310131500
-    pub enddate: String, // example: 20231014
-    pub url: String,  // example: /th?id=OHR.RailwayDay2023_JA-JP6915793143_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp
+    pub enddate: String,       // example: 20231014
+    pub url: String, // example: /th?id=OHR.RailwayDay2023_JA-JP6915793143_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp
     pub urlbase: String, // example: /th?id=OHR.RailwayDay2023_JA-JP6915793143
     pub copyright: String, // example: 第三只見川橋梁を渡る列車, 福島県 大沼郡 三島町 (© DoctorEgg/Getty Images)
     pub copyrightlink: String, // example: https://www.bing.com/search?q=%E5%8F%AA%E8%A6%8B%E7%B7%9A&form=hpcapt&filters=HpDate%3a%2220231013_1500%22
-    pub title: String, // example: 今日は鉄道の日
+    pub title: String,         // example: 今日は鉄道の日
     pub quiz: String, // example: /search?q=Bing+homepage+quiz&filters=WQOskey:%22HPQuiz_20231013_RailwayDay2023%22&FORM=HPQUIZ
     pub wp: bool,
     pub hsh: String, // example 693bc6e04e2867a01a8cbf5c2acfc44c
-    pub drk: i64, // example: 1
-    pub top: i64, // example: 1
-    pub bot: i64, // example: 1
+    pub drk: i64,    // example: 1
+    pub top: i64,    // example: 1
+    pub bot: i64,    // example: 1
     pub hs: Vec<serde_json::Value>,
 
     // for internal usage
@@ -109,17 +120,30 @@ impl ImageObject {
             if rs.1.starts_with("th?id=OHR.") {
                 let mut cleaned_filename = rs.1.strip_prefix("th?id=OHR.").unwrap();
                 let cleaned_filename = cleaned_filename.replace("..", "_");
-                return Ok(format!("{}-{}_{}.jpg", self.startdate, cleaned_filename, self.resolution.clone().unwrap_or(DEFAULT_RESOLUTION.to_string())));
+                return Ok(format!(
+                    "{}-{}_{}.jpg",
+                    self.startdate,
+                    cleaned_filename,
+                    self.resolution
+                        .clone()
+                        .unwrap_or(DEFAULT_RESOLUTION.to_string())
+                ));
             }
         }
-        Err(anyhow::format_err!("can not parse urlbase {}  to filename", self.urlbase.clone()))
+        Err(anyhow::format_err!(
+            "can not parse urlbase {}  to filename",
+            self.urlbase.clone()
+        ))
     }
 
     pub fn get_download_url(&self, resolution: &str) -> String {
         let resolution = if RESOLUTIONS.contains(&resolution) {
             resolution
         } else {
-            println!("resolution {} not in {:?}, use default {}", resolution, RESOLUTIONS, DEFAULT_RESOLUTION);
+            println!(
+                "resolution {} not in {:?}, use default {}",
+                resolution, RESOLUTIONS, DEFAULT_RESOLUTION
+            );
             DEFAULT_RESOLUTION
         };
         format!("https://bing.com{}_{}.jpg", self.urlbase, resolution)
@@ -130,17 +154,24 @@ fn get_api_url(mkt: &str) -> String {
     let mkt = if MARKETS.contains(&mkt) {
         mkt
     } else {
-        println!("market {} not in {:?}, use default {}", mkt, MARKETS, DEFAULT_MARKET);
+        println!(
+            "market {} not in {:?}, use default {}",
+            mkt, MARKETS, DEFAULT_MARKET
+        );
         DEFAULT_MARKET
     };
-    format!("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mbl=1&mkt={}", mkt)
+    format!(
+        "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mbl=1&mkt={}",
+        mkt
+    )
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // set default log level https://github.com/rust-cli/env_logger/issues/47#issuecomment-607475404
     env_logger::init_from_env(
-        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"));
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+    );
     let args = Arguments::parse();
     let mode = mode(args.mode);
 
@@ -151,7 +182,9 @@ async fn main() -> anyhow::Result<()> {
         let actual_date = chrono::Local::now().format("%Y%m%d").to_string();
 
         // parse full start date like: 202310131500
-        let full_start_date = chrono::NaiveDateTime::parse_from_str(&image.fullstartdate, "%Y%m%d%H%M").context("parse fullstartdate failed")?;
+        let full_start_date =
+            chrono::NaiveDateTime::parse_from_str(&image.fullstartdate, "%Y%m%d%H%M")
+                .context("parse fullstartdate failed")?;
         debug!("full_start_date: {}", full_start_date);
 
         // Converts the local NaiveDateTime to the timezone-aware DateTime if possible.
@@ -159,7 +192,10 @@ async fn main() -> anyhow::Result<()> {
         debug!("full_start_date from_local_datetime: {:?}", full_start_date);
         let full_start_date = full_start_date + chrono::Duration::hours(24);
         let now_date = chrono::Local::now();
-        debug!("full_start_date +24h: {}, now: {}", full_start_date, now_date);
+        debug!(
+            "full_start_date +24h: {}, now: {}",
+            full_start_date, now_date
+        );
         let mut date_ok = actual_date == image.enddate || actual_date == image.startdate;
         // check if: current time > full_start_date + 24 hours
         if now_date < full_start_date {
@@ -170,7 +206,10 @@ async fn main() -> anyhow::Result<()> {
             date_ok = false;
         }
         if args.resolution == image.resolution && args.market == image.market && date_ok {
-            info!("cached api data match our need, do nothing. image: {:?}", image);
+            info!(
+                "cached api data match our need, do nothing. image: {:?}",
+                image
+            );
             return Ok(());
         } else {
             info!("cached api data not match our need, continue to request api. image: {:?}, args.resolution: {:?}, args.market: {:?}, actual_date: {}",
@@ -180,7 +219,12 @@ async fn main() -> anyhow::Result<()> {
         debug!("no cached api data, continue to request api");
     }
 
-    let api_url = get_api_url(&args.market.as_ref().map_or(DEFAULT_MARKET.to_owned(), |x|x.to_owned()));
+    let api_url = get_api_url(
+        &args
+            .market
+            .as_ref()
+            .map_or(DEFAULT_MARKET.to_owned(), |x| x.to_owned()),
+    );
 
     debug!("begin request api {} ...", &api_url);
 
@@ -193,7 +237,9 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|err| errors::Error::Domain(api_url.to_owned() + ", err: " + &err.to_string()))?
         .text()
         .await
-        .map_err(|err| errors::Error::ImageRequest(api_url.to_owned() + ", err: " +  &err.to_string()))?;
+        .map_err(|err| {
+            errors::Error::ImageRequest(api_url.to_owned() + ", err: " + &err.to_string())
+        })?;
 
     debug!("response body: {:?}", &body);
 
@@ -213,8 +259,13 @@ async fn main() -> anyhow::Result<()> {
     let destination = save_image(&image, args.backup_dir).await?;
 
     if let Some(custom_command) = args.custom_command {
-        let command_args = custom_command.iter().map(|arg|arg.replace("%", &destination.to_string_lossy().into_owned()));
-        debug!("command_args: {:?}", command_args.clone().collect::<Vec<_>>());
+        let command_args = custom_command
+            .iter()
+            .map(|arg| arg.replace("%", &destination.to_string_lossy().into_owned()));
+        debug!(
+            "command_args: {:?}",
+            command_args.clone().collect::<Vec<_>>()
+        );
         // loop command_args and exec sh -c command
         for arg in command_args {
             info!("begin exec command: {:?}", arg);
@@ -237,7 +288,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::Result<PathBuf> {
-    let base_dirs = BaseDirs::new().ok_or_else(||anyhow::format_err!("BaseDirs::new() failed"))?;
+    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::format_err!("BaseDirs::new() failed"))?;
     //return Err(errors::Error::Directory.into());
     let image_url = image.get_download_url(DEFAULT_RESOLUTION);
     info!("Downloading {} ...", image_url);
@@ -245,7 +296,12 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
 
     let save_path = if let Some(backup_dir) = backup_dir {
         let home_dir = base_dirs.home_dir();
-        let backup_dir = backup_dir.replace("~", home_dir.to_str().ok_or_else(||anyhow::format_err!("home_dir to_str failed"))?);
+        let backup_dir = backup_dir.replace(
+            "~",
+            home_dir
+                .to_str()
+                .ok_or_else(|| anyhow::format_err!("home_dir to_str failed"))?,
+        );
         let mut full_path = PathBuf::from(backup_dir);
         let dir_path = Path::new(&full_path);
         if !dir_path.exists() {
@@ -266,9 +322,9 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
 
     let mut file = tokio::fs::File::create(&save_path).await?;
 
-    let content = response.bytes_stream().map(|result| {
-        result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
-    });
+    let content = response
+        .bytes_stream()
+        .map(|result| result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err)));
 
     tokio::io::copy(&mut StreamReader::new(content), &mut file).await?;
 
@@ -276,7 +332,7 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
 }
 
 async fn save_cached_api_data(response: &ImageObject) -> anyhow::Result<()> {
-    let base_dirs = BaseDirs::new().ok_or_else(||anyhow::format_err!("BaseDirs::new() failed"))?;
+    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::format_err!("BaseDirs::new() failed"))?;
     let mut full_path = base_dirs.data_local_dir().to_path_buf();
     let file_name = PathBuf::from(".wallpaper.json");
 
@@ -292,7 +348,7 @@ async fn save_cached_api_data(response: &ImageObject) -> anyhow::Result<()> {
 }
 
 async fn get_cached_api_data() -> anyhow::Result<ImageObject> {
-    let base_dirs = BaseDirs::new().ok_or_else(||anyhow::format_err!("BaseDirs::new() failed"))?;
+    let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::format_err!("BaseDirs::new() failed"))?;
     let mut full_path = base_dirs.data_local_dir().to_path_buf();
     let file_name = PathBuf::from(".wallpaper.json");
 
@@ -309,7 +365,12 @@ async fn get_cached_api_data() -> anyhow::Result<ImageObject> {
     Ok(image)
 }
 
-fn send_notification(summary: &str, body: &str, icon: &str, image_path: &str) -> anyhow::Result<()> {
+fn send_notification(
+    summary: &str,
+    body: &str,
+    icon: &str,
+    image_path: &str,
+) -> anyhow::Result<()> {
     Notification::new()
         .summary(summary)
         .body(body)
