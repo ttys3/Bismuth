@@ -5,9 +5,13 @@ use inflector::{self, Inflector};
 use notify_rust::Notification;
 use std::{path::PathBuf, process::Command};
 use std::path::Path;
+use anyhow::Context;
+use chrono::TimeZone;
+use log::{debug, info};
 use tokio_stream::StreamExt;
 use tokio_util::io::StreamReader;
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 mod args;
 mod errors;
@@ -27,30 +31,64 @@ const MARKETS: [&str; 57]  = ["auto", "ar-XA", "da-DK", "de-AT", "de-CH", "de-DE
 "pl-PL", "pt-BR", "pt-PT", "ro-RO", "ru-RU", "sk-SK", "sl-SL", "sv-SE", "th-TH", "tr-TR", "uk-UA",
 "zh-CN", "zh-HK", "zh-TW"];
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct ImageObject {
-    pub title: String,
-    pub url: String,
-    pub urlbase: String,
-    pub startdate: String,
-    pub enddate: String,
-    pub resolution: Option<String>,
+    pub startdate: String, // example: 20231013
+    pub fullstartdate: String, // example: 202310131500
+    pub enddate: String, // example: 20231014
+    pub url: String,  // example: /th?id=OHR.RailwayDay2023_JA-JP6915793143_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp
+    pub urlbase: String, // example: /th?id=OHR.RailwayDay2023_JA-JP6915793143
+    pub copyright: String, // example: 第三只見川橋梁を渡る列車, 福島県 大沼郡 三島町 (© DoctorEgg/Getty Images)
+    pub copyrightlink: String, // example: https://www.bing.com/search?q=%E5%8F%AA%E8%A6%8B%E7%B7%9A&form=hpcapt&filters=HpDate%3a%2220231013_1500%22
+    pub title: String, // example: 今日は鉄道の日
+    pub quiz: String, // example: /search?q=Bing+homepage+quiz&filters=WQOskey:%22HPQuiz_20231013_RailwayDay2023%22&FORM=HPQUIZ
     pub wp: bool,
+    pub hsh: String, // example 693bc6e04e2867a01a8cbf5c2acfc44c
+    pub drk: i64, // example: 1
+    pub top: i64, // example: 1
+    pub bot: i64, // example: 1
+    pub hs: Vec<serde_json::Value>,
+
+    // for internal usage
+    pub resolution: Option<String>,
+    pub market: Option<String>,
 }
 
 /// sample response
-/// Object {"images": Array [
-/// Object {"bot": Number(1), "copyright": String("Vieste on the Gargano peninsula, Apulia, Italy (© Pilat666/Getty Images)"),
-/// "copyrightlink": String("https://www.bing.com/search?q=Vieste&form=hpcapt&filters=HpDate%3a%2220231013_0700%22"),
-/// "drk": Number(1), "enddate": String("20231014"), "fullstartdate": String("202310130700"),
-/// "hs": Array [], "hsh": String("c01dedec87d8be3c1b1332686c8fe269"),
-/// "quiz": String("/search?q=Bing+homepage+quiz&filters=WQOskey:%22HPQuiz_20231013_ViesteItaly%22&FORM=HPQUIZ"), "startdate": String("20231013"),
-/// "title": String("Life on the edge"),
-/// "top": Number(1), "url": String("/th?id=OHR.ViesteItaly_EN-US0948108910_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp"),
-/// "urlbase": String("/th?id=OHR.ViesteItaly_EN-US0948108910"),
-/// "wp": Bool(true)}], "market": Object {"mkt": String("en-US")}, "tooltips": Object {"loading": String("Loading..."),
-/// "next": String("Next image"), "previous": String("Previous image"), "walle": String("This image is not available to download as wallpaper."),
-/// "walls": String("Download this image. Use of this image is restricted to wallpaper only.")}}
+/// ```json
+/// {
+///   "market": {
+///     "mkt": "ja-JP"
+///   },
+///   "images": [
+///     {
+///       "startdate": "20231013",
+///       "fullstartdate": "202310131500",
+///       "enddate": "20231014",
+///       "url": "/th?id=OHR.RailwayDay2023_JA-JP6915793143_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp",
+///       "urlbase": "/th?id=OHR.RailwayDay2023_JA-JP6915793143",
+///       "copyright": "第三只見川橋梁を渡る列車, 福島県 大沼郡 三島町 (© DoctorEgg/Getty Images)",
+///       "copyrightlink": "https://www.bing.com/search?q=%E5%8F%AA%E8%A6%8B%E7%B7%9A&form=hpcapt&filters=HpDate%3a%2220231013_1500%22",
+///       "title": "今日は鉄道の日",
+///       "quiz": "/search?q=Bing+homepage+quiz&filters=WQOskey:%22HPQuiz_20231013_RailwayDay2023%22&FORM=HPQUIZ",
+///       "wp": true,
+///       "hsh": "693bc6e04e2867a01a8cbf5c2acfc44c",
+///       "drk": 1,
+///       "top": 1,
+///       "bot": 1,
+///       "hs": []
+///     }
+///   ],
+///   "tooltips": {
+///     "loading": "読み込み中...",
+///     "previous": "前の画像へ",
+///     "next": "次の画像へ",
+///     "walle": "この画像を壁紙としてダウンロードすることはできません。",
+///     "walls": "この画像をダウンロードできます。画像の用途は壁紙に限定されています。"
+///   }
+/// }
+/// ```
+///
 #[derive(Serialize, Deserialize, Debug)]
 struct Response {
     pub images: Option<Vec<ImageObject>>,
@@ -100,41 +138,86 @@ fn get_api_url(mkt: &str) -> String {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // set default log level https://github.com/rust-cli/env_logger/issues/47#issuecomment-607475404
+    env_logger::init_from_env(
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"));
     let args = Arguments::parse();
     let mode = mode(args.mode);
 
+    if let Ok(image) = get_cached_api_data().await {
+        debug!("read cached api data success: {:?}", image);
+        // check if image file match our need
+        // generate date format like: 20231013
+        let actual_date = chrono::Local::now().format("%Y%m%d").to_string();
+
+        // parse full start date like: 202310131500
+        let full_start_date = chrono::NaiveDateTime::parse_from_str(&image.fullstartdate, "%Y%m%d%H%M").context("parse fullstartdate failed")?;
+        debug!("full_start_date: {}", full_start_date);
+
+        // Converts the local NaiveDateTime to the timezone-aware DateTime if possible.
+        let full_start_date = chrono::Local.from_local_datetime(&full_start_date).unwrap();
+        debug!("full_start_date from_local_datetime: {:?}", full_start_date);
+        let full_start_date = full_start_date + chrono::Duration::hours(24);
+        let now_date = chrono::Local::now();
+        debug!("full_start_date +24h: {}, now: {}", full_start_date, now_date);
+        let mut date_ok = actual_date == image.enddate || actual_date == image.startdate;
+        // check if: current time > full_start_date + 24 hours
+        if now_date < full_start_date {
+            debug!("cached api data is not expired, do nothing. image: {:?}, {} (full_start_date) < {} (now_date)", image, full_start_date, now_date);
+            date_ok = true;
+        } else {
+            info!("cached api data is expired, continue to request api. image: {:?}, full_start_date: {}", image, full_start_date);
+            date_ok = false;
+        }
+        if args.resolution == image.resolution && args.market == image.market && date_ok {
+            info!("cached api data match our need, do nothing. image: {:?}", image);
+            return Ok(());
+        } else {
+            info!("cached api data not match our need, continue to request api. image: {:?}, args.resolution: {:?}, args.market: {:?}, actual_date: {}",
+                     image, args.resolution, args.market, actual_date);
+        }
+    } else {
+        debug!("no cached api data, continue to request api");
+    }
+
     let api_url = get_api_url(&args.market.as_ref().map_or(DEFAULT_MARKET.to_owned(), |x|x.to_owned()));
 
-    println!("begin request api {} ...", &api_url);
+    debug!("begin request api {} ...", &api_url);
 
     // https://docs.rs/reqwest/latest/reqwest/struct.Response.html#method.json
     let client = reqwest::Client::new();
-    let response: Response = client
+    let body = client
         .get(api_url.clone())
         .send()
         .await
         .map_err(|err| errors::Error::Domain(api_url.to_owned() + ", err: " + &err.to_string()))?
-        .json::<Response>()
+        .text()
         .await
         .map_err(|err| errors::Error::ImageRequest(api_url.to_owned() + ", err: " +  &err.to_string()))?;
 
-    println!("response: {:?}", &response);
+    debug!("response body: {:?}", &body);
+
+    let response: Response = serde_json::from_str(&body).context("parse response json failed")?;
 
     // temporary value is freed at the end of this statement
     // let image = response.images.unwrap().first().unwrap();
     let binding = response.images.unwrap();
-    let image = binding.first().unwrap();
+    let mut image: ImageObject = binding.first().cloned().unwrap();
 
-    println!("image: {:?}", image);
+    debug!("image: {:?}", image);
+
+    image.resolution = args.resolution.clone();
+    image.market = args.market.clone();
+    save_cached_api_data(&image).await?;
 
     let destination = save_image(&image, args.backup_dir).await?;
 
     if let Some(custom_command) = args.custom_command {
         let command_args = custom_command.iter().map(|arg|arg.replace("%", &destination.to_string_lossy().into_owned()));
-        println!("command_args: {:?}", command_args.clone().collect::<Vec<_>>());
+        debug!("command_args: {:?}", command_args.clone().collect::<Vec<_>>());
         // loop command_args and exec sh -c command
         for arg in command_args {
-            println!("begin exec command: {:?}", arg);
+            info!("begin exec command: {:?}", arg);
             Command::new("sh").arg("-c").arg(arg).spawn()?;
         }
     } else {
@@ -156,7 +239,7 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
     let base_dirs = BaseDirs::new().ok_or_else(||anyhow::format_err!("BaseDirs::new() failed"))?;
     //return Err(errors::Error::Directory.into());
     let image_url = image.get_download_url(DEFAULT_RESOLUTION);
-    println!("Downloading {} ...", image_url);
+    info!("Downloading {} ...", image_url);
     let response = reqwest::get(image_url).await?;
 
     let save_path = if let Some(backup_dir) = backup_dir {
@@ -178,7 +261,7 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
         full_path
     };
 
-    println!("filepath: {:?}", &save_path);
+    info!("filepath: {:?}", &save_path);
 
     let mut file = tokio::fs::File::create(&save_path).await?;
 
@@ -189,6 +272,40 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
     tokio::io::copy(&mut StreamReader::new(content), &mut file).await?;
 
     Ok(save_path)
+}
+
+async fn save_cached_api_data(response: &ImageObject) -> anyhow::Result<()> {
+    let base_dirs = BaseDirs::new().ok_or_else(||anyhow::format_err!("BaseDirs::new() failed"))?;
+    let mut full_path = base_dirs.data_local_dir().to_path_buf();
+    let file_name = PathBuf::from(".wallpaper.json");
+
+    full_path.push(file_name);
+
+    let mut file = tokio::fs::File::create(&full_path).await?;
+
+    let content = serde_json::to_string(response)?;
+
+    file.write_all(content.as_bytes()).await?;
+
+    Ok(())
+}
+
+async fn get_cached_api_data() -> anyhow::Result<ImageObject> {
+    let base_dirs = BaseDirs::new().ok_or_else(||anyhow::format_err!("BaseDirs::new() failed"))?;
+    let mut full_path = base_dirs.data_local_dir().to_path_buf();
+    let file_name = PathBuf::from(".wallpaper.json");
+
+    full_path.push(file_name);
+
+    let file = tokio::fs::File::open(&full_path).await?;
+    let mut reader = tokio::io::BufReader::new(file);
+
+    let mut contents = String::new();
+    reader.read_to_string(&mut contents).await?;
+
+    let image: ImageObject = serde_json::from_str(&contents)?;
+
+    Ok(image)
 }
 
 fn send_notification(summary: &str, body: &str, icon: &str) -> anyhow::Result<()> {

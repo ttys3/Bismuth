@@ -28,7 +28,7 @@ pub struct Arguments {
 
     /// Specify the market to use for the wallpaper
     /// see https://github.com/neffo/bing-wallpaper-gnome-extension/blob/64d516aaf17fda563e4dd2f856e6fa6fa5edc176/extension.js#L628
-    #[clap(long, short)]
+    #[clap(long = "mkt")]
     pub market: Option<String>,
 
     /// Specify the resolution to use for the wallpaper
