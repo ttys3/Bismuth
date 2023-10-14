@@ -229,6 +229,7 @@ async fn main() -> anyhow::Result<()> {
             &NAME.to_pascal_case(),
             &format!("Wallpaper successfully Set.\nTitle: {0}", image.title),
             ICON,
+            destination.to_str().unwrap(),
         )?;
     }
 
@@ -308,10 +309,11 @@ async fn get_cached_api_data() -> anyhow::Result<ImageObject> {
     Ok(image)
 }
 
-fn send_notification(summary: &str, body: &str, icon: &str) -> anyhow::Result<()> {
+fn send_notification(summary: &str, body: &str, icon: &str, image_path: &str) -> anyhow::Result<()> {
     Notification::new()
         .summary(summary)
         .body(body)
+        .image_path(image_path)
         .icon(icon)
         .show()?;
 
