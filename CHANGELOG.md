@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2023-10-14
+
+### Documentation
+
+- Release 1.3.0
+- Document new added cli flags to README.md
+
+### Features
+
+- Support resolution and market param
+- Show current image in notification
+
+### Miscellaneous Tasks
+
+- Set description and license in Cargo.toml
+- Change default resolution to UHD, default market area to ja-JP
+
+### Refactor
+
+- Refine logging, avoid duplicated api request using cache
+- Refine cli flag comments
+
+### Styling
+
+- Run cargo fmt
+- Lint the code
+
 ## [1.2.0] - 2023-10-13
 
 ### Features
