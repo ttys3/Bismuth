@@ -2,6 +2,8 @@
 name = "bismuth"
 version = "1.0.0"
 edition = "2021"
+description = "A Rust cli util to set your desktop wallpaper to the newest 'Bing Image Of The Day'."
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.
 [dependencies]
