@@ -84,13 +84,16 @@ bismuth -c 'swaybg --image %'
 The wallpaper gets saved at `$HOME/.local/share/.wallpaper.jpg`.
 
 ### Commands
-| Command                                      | Description                                |
-|----------------------------------------------|--------------------------------------------|
-| `--silent`, `-s`                             | Disable notifications.                     |
-| `--mode`, `-m` `<MODE>`                      | Set feh scaling options.                   |
-| `--custom-command`, `-c` `<CUSTOM_COMMAND>`  | Set background using custom command.       |
-| `--help`, `-h`                               | Display help information.                  |
-| `--version`, `-V`                            | Show the version of the script.            |
+| Command                                     | Description                                                              |
+|---------------------------------------------|--------------------------------------------------------------------------|
+| `--silent`, `-s`                            | Disable notifications.                                                   |
+| `--mode`, `-m` `<MODE>`                     | Set feh scaling options.                                                 |
+| `--custom-command`, `-c` `<CUSTOM_COMMAND>` | Set background using custom command, this flag can repeat multiple times |
+| `--help`, `-h`                              | Display help information.                                                |
+| `--version`, `-V`                           | Show the version of the script.                                          |
+| `-b, --backup-dir <BACKUP_DIR>`             | Backup dir to copy daily wallpaper to                                    |
+| `--mkt <MARKET>`                            | Specify the market to use for the wallpaper                              |
+| `-r, --resolution <RESOLUTION>`             | Specify the resolution to use for the wallpaper.                         |
 
 ### `--help`
 ```
@@ -102,7 +105,13 @@ Options:
   -m, --mode <MODE>
           Specifies the scaling options for Feh [default: fill] [possible values: center, fill, max, scale, tile]
   -c, --custom-command <CUSTOM_COMMAND>
-          Call custom wallpaper command
+          Call custom wallpaper command, this flag can repeat multiple times
+  -b, --backup-dir <BACKUP_DIR>
+          Backup dir to copy daily wallpaper to
+      --mkt <MARKET>
+          Specify the market to use for the wallpaper. Available mkt: auto, ar-XA, da-DK, de-AT, de-CH, de-DE, en-AU, en-CA, en-GB, en-ID, en-IE, en-IN, en-MY, en-NZ, en-PH, en-SG, en-US, en-WW, en-XA, en-ZA, es-AR, es-CL, es-ES, es-MX, es-US, es-XL, et-EE, fi-FI, fr-BE, fr-CA, fr-CH, fr-FR, he-IL, hr-HR, hu-HU, it-IT, ja-JP, ko-KR, lt-LT, lv-LV, nb-NO, nl-BE, nl-NL, pl-PL, pt-BR, pt-PT, ro-RO, ru-RU, sk-SK, sl-SL, sv-SE, th-TH, tr-TR, uk-UA, zh-CN, zh-HK, zh-TW
+  -r, --resolution <RESOLUTION>
+          Specify the resolution to use for the wallpaper. Available resolution: auto UHD 1920x1200 1920x1080 1366x768 1280x720 1024x768 800x600
   -h, --help
           Print help (see more with '--help')
   -V, --version
