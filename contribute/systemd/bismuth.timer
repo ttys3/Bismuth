@@ -4,8 +4,9 @@ ConditionVirtualization=!container
 
 [Timer]
 OnBootSec=1min
-OnActiveSec=30min
 RandomizedDelaySec=180
+# systemd-analyze calendar --iterations 3 '*-*-* *:30:00'
+OnCalendar=*-*-* *:30:00
 
 [Install]
 WantedBy=timers.target
