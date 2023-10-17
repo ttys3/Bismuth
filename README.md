@@ -25,31 +25,39 @@
 Bismuth is a lightweight Rust script that sets your desktop wallpaper to the latest daily Bing image. 
 
 ## Dependencies
+
 |Dependency|Link                                              |
 |----------|--------------------------------------------------|
 |feh       |[Github](https://github.com/derf/feh)             |
-|libnotify |[Gitlab](https://gitlab.gnome.org/GNOME/libnotify)|
+
+
+### For Fedora Linux
+
+```shell
+dnf install feh
+```
 
 ### For Arch
 ```
-paru -S feh libnotify
+paru -S feh
 ```
 ```
-yay -S feh libnotify
+yay -S feh
 ```
 ```
-sudo pacman -S feh libnotify
+sudo pacman -S feh
 ```
 
 ### For Debian, Ubuntu and Mint
 ```
-sudo apt install feh libnotify-dev
+sudo apt install feh
 ```
 
 ## Installation
+
 1\. Clone the repository and cd into it.
 ```
-git clone "https://github.com/thejayduck/bismuth"
+git clone "https://github.com/ttys3/Bismuth"
 cd Bismuth
 ```
 2\. Build Bismuth
