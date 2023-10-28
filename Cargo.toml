@@ -1,6 +1,6 @@
 [package]
 name = "bismuth"
-version = "1.0.0"
+version = "1.4.0"
 edition = "2021"
 description = "A Rust cli util to set your desktop wallpaper to the newest 'Bing Image Of The Day'."
 license = "MIT"
