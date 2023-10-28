@@ -2,12 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2023-10-28
+
+### Bug Fixes
+
+- Need stop timer to reset state if no next show when list the timer (do not know why)
+- Fix systemd timer not run repeatedly
+
+### Documentation
+
+- Libnotify is not required anymore
+
+### Miscellaneous Tasks
+
+- Adjust RandomizedDelaySec in bismuth.timer
+- Add list.sh to list user timers
+- Do not update bg wallpaper setting if file not changed
+
 ## [1.3.0] - 2023-10-14
 
 ### Documentation
 
-- Release 1.3.0
 - Document new added cli flags to README.md
+- Release 1.3.0
 
 ### Features
 
