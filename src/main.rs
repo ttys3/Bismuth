@@ -63,9 +63,11 @@ struct ImageObject {
     // for internal usage
     pub resolution: Option<String>,
     pub market: Option<String>,
+    pub file_hash : Option<String>, // why not just use `hsh` field? because when we download, we use different resolution, so the file hash will be different
 }
 
 /// sample response
+/// run `curl -Ss "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US" | jq` to get sample result
 /// ```json
 /// {
 ///   "market": {
@@ -257,6 +259,12 @@ async fn main() -> anyhow::Result<()> {
     save_cached_api_data(&image).await?;
 
     let destination = save_image(&image, args.backup_dir).await?;
+    if destination.is_none() {
+        info!("image file exists, do nothing");
+        return Ok(());
+    }
+
+    let destination = destination.unwrap();
 
     if let Some(custom_command) = args.custom_command {
         let command_args = custom_command
@@ -287,7 +295,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::Result<PathBuf> {
+async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::Result<Option<PathBuf>> {
     let base_dirs = BaseDirs::new().ok_or(errors::Error::Directory)?;
     //return Err(errors::Error::Directory.into());
     let image_url = image.get_download_url(DEFAULT_RESOLUTION);
@@ -320,6 +328,13 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
 
     info!("filepath: {:?}", &save_path);
 
+    if let Ok(metadata) = std::fs::metadata(&save_path) {
+        if metadata.is_file() {
+            info!("file exists, skip download: {:?}", &save_path);
+            return Ok(None);
+        }
+    }
+
     let mut file = tokio::fs::File::create(&save_path).await?;
 
     let content = response
@@ -328,7 +343,7 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
 
     tokio::io::copy(&mut StreamReader::new(content), &mut file).await?;
 
-    Ok(save_path)
+    Ok(Some(save_path))
 }
 
 async fn save_cached_api_data(response: &ImageObject) -> anyhow::Result<()> {
