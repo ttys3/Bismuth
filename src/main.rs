@@ -124,7 +124,7 @@ impl ImageObject {
                 let cleaned_filename = cleaned_filename.replace("..", "_");
                 return Ok(format!(
                     "{}-{}_{}.jpg",
-                    self.startdate,
+                    self.enddate,
                     cleaned_filename,
                     self.resolution
                         .clone()
@@ -349,6 +349,8 @@ async fn save_image(image: &ImageObject, backup_dir: Option<String>) -> anyhow::
 async fn save_cached_api_data(response: &ImageObject) -> anyhow::Result<()> {
     let base_dirs = BaseDirs::new().ok_or_else(|| anyhow::format_err!("BaseDirs::new() failed"))?;
     let mut full_path = base_dirs.data_local_dir().to_path_buf();
+
+    // cached json ~/.local/share/.wallpaper.json
     let file_name = PathBuf::from(".wallpaper.json");
 
     full_path.push(file_name);
