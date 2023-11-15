@@ -9,10 +9,14 @@ on:
     # Sequence of patterns matched against refs/tags
     tags:        
       - 'v*'
+    paths-ignore:
+      - '**/*.md'
   pull_request:
     # Sequence of patterns matched against refs/heads
     branches:    
       - main
+    paths-ignore:
+      - '**/*.md'
 
 env:
   CARGO_TERM_COLOR: always
