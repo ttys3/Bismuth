@@ -146,3 +146,7 @@ The `%` symbol is important as it signifies the file destination.
 ### To-Do
 - [x] Save image as `.wallpaper.jpg` for `.fehbg`.
 - [x] Custom command support.
+
+### credits
+
+this repo is originally forked from [thejayduck/Bismuth](https://github.com/thejayduck/Bismuth)
