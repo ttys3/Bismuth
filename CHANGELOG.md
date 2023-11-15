@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### Documentation
+
+- Update README.md
+
+## [1.4.1] - 2023-11-15
+
+### Documentation
+
+- Update CHANGELOG.md
+
+### Miscellaneous Tasks
+
+- Update crates
+- Correct file datetime
+
+### Build
+
+- Update crates
+
 ## [1.4.0] - 2023-10-28
 
 ### Bug Fixes
