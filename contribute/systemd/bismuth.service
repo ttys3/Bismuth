@@ -2,6 +2,12 @@
 Description=bismuth service set your desktop wallpaper to the newest Bing Image Of The Day
 ConditionVirtualization=!container
 
+# Note that StartLimitInterval must be greater than RestartSec * StartLimitBurst
+# otherwise the service will be restarted indefinitely.
+# The service is considered failed when restarted StartLimitBurst times within StartLimitInterval.
+StartLimitInterval=600
+StartLimitBurst=5
+
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/environment
@@ -9,3 +15,6 @@ ExecStart=/usr/local/bin/bismuth -r UHD --mkt ja-JP -b "~/Pictures/BingWallpaper
 PrivateDevices=no
 PrivateNetwork=no
 PrivateUsers=no
+
+Restart=on-failure
+RestartSec=60s
