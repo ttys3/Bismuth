@@ -10,6 +10,7 @@ StartLimitBurst=5
 
 [Service]
 Type=oneshot
+TimeoutStartSec=10
 EnvironmentFile=/etc/environment
 ExecStart=/usr/local/bin/bismuth -r UHD --mkt ja-JP -b "~/Pictures/BingWallpaper/" -c "gsettings set org.gnome.desktop.background picture-uri 'file://%'" -c "gsettings set org.gnome.desktop.background picture-uri-dark 'file://%'"
 PrivateDevices=no
