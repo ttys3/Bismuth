@@ -207,7 +207,7 @@ async fn main() -> anyhow::Result<()> {
             info!("cached api data is expired, continue to request api. image: {:?}, full_start_date: {}", image, full_start_date);
             false
         };
-        if args.resolution == image.resolution && args.market == image.market && date_ok {
+        if (args.resolution == image.resolution && args.market == image.market && date_ok) && !args.force {
             info!(
                 "cached api data match our need, do nothing. image: {:?}",
                 image

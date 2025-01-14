@@ -49,6 +49,11 @@ pub struct Arguments {
     ///     800x600
     #[clap(long, short)]
     pub resolution: Option<String>,
+
+
+    /// force check
+    #[clap(long, short)]
+    pub force: bool,
 }
 
 #[derive(Debug, ValueEnum, Clone)]
