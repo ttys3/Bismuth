@@ -39,6 +39,7 @@ jobs:
             target: x86_64-unknown-linux-musl
             bin: bismuth
             name: bismuth-Linux-x86_64-musl.tar.gz
+            command: build
             cross: false
           
           - release_for: Linux-aarch64
@@ -47,12 +48,13 @@ jobs:
             target: aarch64-unknown-linux-musl
             bin: bismuth
             name: bismuth-Linux-aarch64-musl.tar.gz
+            command: build
             cross: false
 
     runs-on: ${{ matrix.platform.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Cache cargo & target directories
         uses: Swatinem/rust-cache@v2
@@ -75,7 +77,7 @@ jobs:
         if: contains(matrix.platform.os, 'ubuntu') && !matrix.platform.cross
 
       - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v0
+        uses: houseabsolute/actions-rust-cross@v1
         with:
           command: ${{ matrix.platform.command }}
           target: ${{ matrix.platform.target }}
