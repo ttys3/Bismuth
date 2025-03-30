@@ -150,3 +150,12 @@ The `%` symbol is important as it signifies the file destination.
 ### credits
 
 this repo is originally forked from [thejayduck/Bismuth](https://github.com/thejayduck/Bismuth)
+
+### Related projects
+
+
+https://github.com/swsnr/picture-of-the-day
+
+https://flathub.org/apps/details/de.swsnr.pictureoftheday
+
+> Get a picture of the day from any of the following sources as your daily wallpaper
